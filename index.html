@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>HyperOS Stable Morph</title>
+    <style>
+        :root {
+            --miui-ease: cubic-bezier(0.4, 0, 0.2, 1);
+            --radius: 18px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body { background: #000; height: 100vh; width: 100vw; overflow: hidden; position: fixed; touch-action: none; }
+
+        .wallpaper {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(160deg, #1e293b 0%, #000 100%);
+            z-index: -1;
+            transition: transform 0.8s var(--miui-ease);
+        }
+
+        /* --- KİLİT EKRANI --- */
+        #lockScreen {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(40px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            transition: transform 0.6s cubic-bezier(0.1, 0, 0.1, 1);
+        }
+        .time { font-size: 100px; font-weight: 200; color: #fff; }
+
+        /* --- ANA EKRAN --- */
+        #home {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            padding: 80px 25px;
+            opacity: 0;
+            transform: scale(0.6);
+            transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s;
+        }
+
+        .app-icon { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .icon-box {
+            width: 65px; height: 65px; 
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .app-label { color: #fff; font-size: 11px; margin-top: 8px; opacity: 0.7; }
+
+        /* --- STABLE MORPHING LAYER --- */
+        #appLayer {
+            position: fixed;
+            z-index: 1500;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #fff;
+            display: none;
+            overflow: hidden;
+            transform-origin: 0 0; /* Sol üstten hesapla */
+            transition: transform 0.5s var(--miui-ease), border-radius 0.5s var(--miui-ease), opacity 0.2s;
+        }
+
+        .app-content { 
+            width: 100vw; height: 100vh; 
+            padding: 60px 30px; color: #000;
+            opacity: 0; transition: opacity 0.2s;
+        }
+
+        #appLayer.active {
+            transform: translate(0, 0) scale(1) !important;
+            border-radius: 0;
+        }
+        #appLayer.active .app-content { opacity: 1; }
+
+        /* Gesture Alanı */
+        .gesture-zone {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 60px;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1600;
+        }
+        .nav-handle { width: 130px; height: 5px; background: rgba(0,0,0,0.1); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="wallpaper" id="wp"></div>
+
+    <div id="lockScreen" onclick="unlock()">
+        <div class="time">09:41</div>
+        <p style="color:#fff; opacity:0.5; font-size:14px; margin-top:10px;">Giriş için dokun</p>
+    </div>
+
+    <div id="home">
+        <div class="app-icon" onclick="openApp(this, '#0052cc', 'eFootball')">
+            <div class="icon-box" style="background: #0052cc;"></div>
+            <span class="app-label">eFootball</span>
+        </div>
+        <div class="app-icon" onclick="openApp(this, '#25D366', 'WhatsApp')">
+            <div class="icon-box" style="background: #25D366;"></div>
+            <span class="app-label">WhatsApp</span>
+        </div>
+        <div class="app-icon" onclick="openApp(this, '#ff0000', 'YouTube')">
+            <div class="icon-box" style="background: #ff0000;"></div>
+            <span class="app-label">YouTube</span>
+        </div>
+        <div class="app-icon" onclick="openApp(this, '#111', 'Ayarlar')">
+            <div class="icon-box" style="background: #111;"></div>
+            <span class="app-label">Ayarlar</span>
+        </div>
+    </div>
+
+    <div id="appLayer">
+        <div class="app-content">
+            <h1 id="appTitle">Uygulama</h1>
+            <p style="margin-top: 20px; color: #666;">Bugsuz Morphing Deneyimi.</p>
+        </div>
+        <div class="gesture-zone" id="gz">
+            <div class="nav-handle"></div>
+        </div>
+    </div>
+
+    <script>
+        const lock = document.getElementById('lockScreen');
+        const home = document.getElementById('home');
+        const layer = document.getElementById('appLayer');
+        let iconScale = 65 / window.innerWidth;
+        let lastTransform = "";
+
+        function unlock() {
+            lock.style.transform = 'translateY(-100%)';
+            home.style.opacity = '1';
+            home.style.transform = 'scale(1)';
+        }
+
+        function openApp(el, color, name) {
+            const rect = el.querySelector('.icon-box').getBoundingClientRect();
+            
+            // Başlangıç durumunu ayarla (İkon boyutuna küçült ve oraya taşı)
+            const scaleX = 65 / window.innerWidth;
+            const scaleY = 65 / window.innerHeight;
+            
+            layer.style.transition = "none";
+            layer.style.background = color;
+            layer.style.display = "block";
+            layer.style.borderRadius = "18px";
+            
+            // İkonun tam merkezine oturt
+            lastTransform = `translate(${rect.left}px, ${rect.top}px) scale(${scaleX}, ${scaleY})`;
+            layer.style.transform = lastTransform;
+            
+            document.getElementById('appTitle').innerText = name;
+
+            // Animasyonu tetikle
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    layer.style.transition = "transform 0.5s var(--miui-ease), border-radius 0.5s var(--miui-ease)";
+                    layer.classList.add('active');
+                    home.style.transform = "scale(0.9) blur(10px)";
+                    home.style.opacity = "0.3";
+                }, 10);
+            });
+        }
+
+        let gStartY = 0;
+        const gz = document.getElementById('gz');
+
+        gz.addEventListener('touchstart', e => {
+            gStartY = e.touches[0].clientY;
+            layer.style.transition = "none";
+        });
+
+        gz.addEventListener('touchmove', e => {
+            let moveY = e.touches[0].clientY - gStartY;
+            if(moveY < 0) {
+                let s = 1 - Math.abs(moveY) / 1000;
+                layer.style.transform = `translateY(${moveY}px) scale(${s})`;
+            }
+        });
+
+        gz.addEventListener('touchend', e => {
+            let diff = e.changedTouches[0].clientY - gStartY;
+            if(diff < -60) {
+                // Çıkış animasyonu: İkonun yerine geri dön
+                layer.style.transition = "all 0.5s var(--miui-ease)";
+                layer.classList.remove('active');
+                layer.style.transform = lastTransform;
+                layer.style.borderRadius = "18px";
+                
+                home.style.transform = "scale(1)";
+                home.style.opacity = "1";
+                
+                setTimeout(() => {
+                    if(!layer.classList.contains('active')) layer.style.display = "none";
+                }, 500);
+            } else {
+                layer.style.transition = "transform 0.3s var(--miui-ease)";
+                layer.style.transform = "translate(0,0) scale(1)";
+            }
+        });
+    </script>
+</body>
+</html>
